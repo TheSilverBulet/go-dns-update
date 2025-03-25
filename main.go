@@ -72,7 +72,7 @@ func main() {
 		return
 	}
 	if publicIP == dnsRecordIP {
-		log.Warn("A Record IP Address correct, nothing to do")
+		log.Info("A Record IP Address correct, nothing to do")
 		return
 	}
 
