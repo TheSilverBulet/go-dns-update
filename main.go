@@ -12,8 +12,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Endpoints
-const ZONES_ENDPOINT = "https://api.cloudflare.com/client/v4/zones"
+// CloudFlare Endpoints
+const LIST_ZONES_ENDPOINT = "https://api.cloudflare.com/client/v4/zones"
+const LIST_DNS_ENDPOINT = "https://api.cloudflare.com/client/v4/zones/%v/dns_records"
+
+// Other Endpoints
 const PUB_IP_SERVICE_ENDPOINT = "https://api.ipify.org"
 
 // Other constants
@@ -84,7 +87,7 @@ func main() {
 func GetZoneID(client http.Client, ctx context.Context, apiToken string) (string, error) {
 	// Create the request setting the context, the method, the endpoint, and the body
 	// GET requests don't have a body so pass nil
-	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, ZONES_ENDPOINT, nil)
+	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, LIST_ZONES_ENDPOINT, nil)
 	if err != nil { // Errors related to creating request
 		log.Fatal("Error creating the request")
 		return "", err
