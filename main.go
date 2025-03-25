@@ -14,6 +14,7 @@ import (
 
 // Endpoints
 const ZONES_ENDPOINT = "https://api.cloudflare.com/client/v4/zones"
+const PUB_IP_SERVICE_ENDPOINT = "https://api.ipify.org"
 
 // Other constants
 const AUTH_HEADER_KEY = "Authorization"
@@ -79,29 +80,28 @@ func main() {
 }
 
 // Method to get Zone Information
+// Takes a premade http.Client, context.Context, and a CloudFlare API Token as params
 func GetZoneID(client http.Client, ctx context.Context, apiToken string) (string, error) {
 	// Create the request setting the context, the method, the endpoint, and the body
 	// GET requests don't have a body so pass nil
 	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, ZONES_ENDPOINT, nil)
-
 	if err != nil { // Errors related to creating request
 		log.Fatal("Error creating the request")
-		return "", fmt.Errorf("Could not create the request")
+		return "", err
 	}
 	// Add the Authorization header to the request using the API Token
 	req.Header.Set(AUTH_HEADER_KEY, MakeAuthHeaderValue(apiToken))
 	resp, err := client.Do(req) // Fire the request
-
-	if err != nil { // Errors related to firing the request
+	if err != nil {             // Errors related to firing the request
 		log.Fatal("Error firing request")
-		return "", fmt.Errorf("Could not fire request")
+		return "", err
 	}
 
 	defer resp.Body.Close()            // Make sure to close the response Body
 	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
 	if err != nil {                    // Errors related to reading the response
 		log.Fatal("Error reading response body")
-		return "", fmt.Errorf("Could not read response body")
+		return "", err
 	}
 	var responseResult map[string]interface{}             // Var of map type key is a string and the value is an object (typically a map)
 	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
@@ -110,8 +110,28 @@ func GetZoneID(client http.Client, ctx context.Context, apiToken string) (string
 	return zoneId.(string), nil
 }
 
+// Method to reach out to the ipify web service and get the value of the running machine's Public IP address
 func GetPublicIP(client http.Client, ctx context.Context) (string, error) {
-	return "", nil
+	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PUB_IP_SERVICE_ENDPOINT, nil)
+	if err != nil {
+		log.Fatal("Error creating request")
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal("Error firing request")
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
+	if err != nil {                    // Errors related to reading the response
+		log.Fatal("Error reading response body")
+		return "", err
+	}
+
+	return string(body), nil
 }
 
 func GetDNSRecord(client http.Client, ctx context.Context, zoneId string, apiToken string, apiEmail string) (string, error) {
