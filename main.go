@@ -107,10 +107,10 @@ func GetZoneID(client http.Client, ctx context.Context, apiToken string) (string
 		log.Fatal("Error reading response body")
 		return "", err
 	}
-	var responseResult map[string]interface{}             // Var of map type key is a string and the value is an object (typically a map)
+	var responseResult map[string]any                     // Var of map type key is a string and the value is an object (typically a map)
 	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
 	// Parsing the zone ID begins by getting the result JSON array, then getting the first element in the result JSON array which is the account object, then get the value of the id key from the account object
-	zoneID := responseResult["result"].([]interface{})[0].(map[string]any)["id"]
+	zoneID := responseResult["result"].([]any)[0].(map[string]any)["id"]
 	return zoneID.(string), nil
 }
 
@@ -166,15 +166,15 @@ func GetDNSRecord(client http.Client, ctx context.Context, zoneID string, apiTok
 		log.Fatal("Error reading response body")
 		return "", "", "", err
 	}
-	var responseResult map[string]interface{}             // Var of map type key is a string and the value is an object (typically a map)
+	var responseResult map[string]any                     // Var of map type key is a string and the value is an object (typically a map)
 	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
-	jsonResponseArray := responseResult["result"].([]interface{})
+	jsonResponseArray := responseResult["result"].([]any)
 	var domainIP string
 	var domainID string
 	var wwwID string
 	currentElement := 0
 	for currentElement < len(jsonResponseArray) {
-		tmpJsonObj := jsonResponseArray[currentElement].(map[string]interface{})
+		tmpJsonObj := jsonResponseArray[currentElement].(map[string]any)
 		if tmpJsonObj["name"] == domainName {
 			domainIP = tmpJsonObj["content"].(string)
 			domainID = tmpJsonObj["id"].(string)
@@ -193,8 +193,10 @@ func GetDNSRecord(client http.Client, ctx context.Context, zoneID string, apiTok
 	return domainIP, domainID, wwwID, nil
 }
 
-func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, apiToken string, publicIP string, domainID string, handleWWW bool, wwwID string) error {
-	return nil
+// Method to update the DNS record associated with the provided IDs.
+// Returns a boolean value, true if successful, false if not
+func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, apiToken string, publicIP string, domainID string, handleWWW bool, wwwID string) (bool, error) {
+	return false, nil
 }
 
 // Little helper function to help create the value portion of the
