@@ -28,12 +28,14 @@ const GET_METHOD_KEY = "GET"
 func main() {
 	// required vars for application run
 	var apiToken string
-	var apiEmail string
 	var logLevel string
+	var domainName string
+	var handleWWW bool
 	// CLI flags for application run
 	flag.StringVar(&apiToken, "token", "", "API Token for requests")
-	flag.StringVar(&apiEmail, "email", "", "API Email for requests")
 	flag.StringVar(&logLevel, "logLevel", "Warn", "Log level to set")
+	flag.StringVar(&domainName, "domainName", "", "The domain name to update")
+	flag.BoolVar(&handleWWW, "handleWWW", false, "Sometimes a separate www. domain is available for the same host, if this flag is set, it will update both values with the same IP address.")
 	flag.Parse()
 
 	// Configure log-level
@@ -50,8 +52,6 @@ func main() {
 		log.SetLevel(log.WarnLevel)
 	}
 
-	log.Info(apiEmail)
-
 	// Create a context which enables a 5s timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -60,7 +60,7 @@ func main() {
 			return http.ErrUseLastResponse
 		},
 	}
-	zoneId, err := GetZoneID(*client, ctx, apiToken)
+	zoneID, err := GetZoneID(*client, ctx, apiToken)
 	if err != nil {
 		log.Fatal("Error getting Zone ID")
 		return
@@ -70,7 +70,7 @@ func main() {
 		log.Fatal("Error obtaining Public IP Address")
 		return
 	}
-	dnsRecordIP, err := GetDNSRecord(*client, ctx, zoneId, apiToken, apiEmail)
+	dnsRecordIP, domainID, wwwID, err := GetDNSRecord(*client, ctx, zoneID, apiToken, domainName, handleWWW)
 	if err != nil {
 		log.Fatal("Error obtaining DNS Record")
 		return
@@ -79,6 +79,7 @@ func main() {
 		log.Info("A Record IP Address correct, nothing to do")
 		return
 	}
+	updateDNSRecord(*client, ctx, zoneID, apiToken, publicIP, domainID, handleWWW, wwwID)
 
 }
 
@@ -108,9 +109,9 @@ func GetZoneID(client http.Client, ctx context.Context, apiToken string) (string
 	}
 	var responseResult map[string]interface{}             // Var of map type key is a string and the value is an object (typically a map)
 	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
-	// Parsing the zone id begins by getting the result JSON array, then getting the first element in the result JSON array which is the account object, then get the value of the id key from the account object
-	zoneId := responseResult["result"].([]interface{})[0].(map[string]any)["id"]
-	return zoneId.(string), nil
+	// Parsing the zone ID begins by getting the result JSON array, then getting the first element in the result JSON array which is the account object, then get the value of the id key from the account object
+	zoneID := responseResult["result"].([]interface{})[0].(map[string]any)["id"]
+	return zoneID.(string), nil
 }
 
 // Method to reach out to the ipify web service and get the value of the running machine's Public IP address
@@ -137,8 +138,63 @@ func GetPublicIP(client http.Client, ctx context.Context) (string, error) {
 	return string(body), nil
 }
 
-func GetDNSRecord(client http.Client, ctx context.Context, zoneId string, apiToken string, apiEmail string) (string, error) {
-	return "", nil
+// Method to retrieve DNS record information for a provided domainName
+// This method returns 3 strings and an error object
+// The first string is expected to be the current domain IP address
+// The second string is expected to be the ID of the domain record
+// The third string is expected to be the ID of the www record (if it exists)
+func GetDNSRecord(client http.Client, ctx context.Context, zoneID string, apiToken string, domainName string, handleWWW bool) (string, string, string, error) {
+	// Create the request setting the context, the method, the endpoint, and the body
+	// GET requests don't have a body so pass nil
+	formattedDNSRequestURL := fmt.Sprintf(LIST_DNS_ENDPOINT, zoneID)
+	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, formattedDNSRequestURL, nil)
+	if err != nil { // Errors related to creating request
+		log.Fatal("Error creating the request")
+		return "", "", "", err
+	}
+	// Add the Authorization header to the request using the API Token
+	req.Header.Set(AUTH_HEADER_KEY, MakeAuthHeaderValue(apiToken))
+	resp, err := client.Do(req) // Fire the request
+	if err != nil {             // Errors related to firing the request
+		log.Fatal("Error firing request")
+		return "", "", "", err
+	}
+
+	defer resp.Body.Close()            // Make sure to close the response Body
+	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
+	if err != nil {                    // Errors related to reading the response
+		log.Fatal("Error reading response body")
+		return "", "", "", err
+	}
+	var responseResult map[string]interface{}             // Var of map type key is a string and the value is an object (typically a map)
+	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
+	jsonResponseArray := responseResult["result"].([]interface{})
+	var domainIP string
+	var domainID string
+	var wwwID string
+	currentElement := 0
+	for currentElement < len(jsonResponseArray) {
+		tmpJsonObj := jsonResponseArray[currentElement].(map[string]interface{})
+		if tmpJsonObj["name"] == domainName {
+			domainIP = tmpJsonObj["content"].(string)
+			domainID = tmpJsonObj["id"].(string)
+		}
+		if handleWWW && tmpJsonObj["name"] == "www."+domainName {
+			wwwID = tmpJsonObj["id"].(string)
+		}
+		currentElement += 1
+	}
+	if domainIP == "" {
+		return "", "", "", fmt.Errorf("could not match domain name")
+	}
+	if handleWWW && wwwID == "" {
+		return "", "", "", fmt.Errorf("could not get www record using domain %v, does it exist?", domainName)
+	}
+	return domainIP, domainID, wwwID, nil
+}
+
+func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, apiToken string, publicIP string, domainID string, handleWWW bool, wwwID string) error {
+	return nil
 }
 
 // Little helper function to help create the value portion of the
