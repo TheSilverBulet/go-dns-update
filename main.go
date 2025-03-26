@@ -28,7 +28,7 @@ const CONTENT_TYPE_HEADER_VALUE = "application/json"
 
 // HTTP Method Constants
 const GET_METHOD_KEY = "GET"
-const POST_METHOD_KEY = "POST"
+const PATCH_METHOD_KEY = "PATCH"
 
 // The main function
 // Retrieves important values from the CLI flags
@@ -212,7 +212,7 @@ func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, api
 	// This request is a POST so we need to create the body
 	var jsonBody = []byte(fmt.Sprintf(`{"content": "%v"}`, publicIP))
 	formattedDNSUpdateURL := fmt.Sprintf(UPDATE_DNS_ENDPOINT, zoneID, domainID)
-	req, err := http.NewRequestWithContext(ctx, POST_METHOD_KEY, formattedDNSUpdateURL, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, PATCH_METHOD_KEY, formattedDNSUpdateURL, bytes.NewBuffer(jsonBody))
 	if err != nil { // Errors related to creating request
 		log.Fatal("Error creating the request")
 		return false, err
@@ -235,9 +235,11 @@ func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, api
 	json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
 	jsonResponseResult := responseResult["result"].(map[string]any)
 	if responseResult["success"].(bool) && jsonResponseResult["content"].(string) == publicIP {
+		log.Info("Domain updated with new IP value")
 		if handleWWW {
+			log.Info("Working on www domain record")
 			formattedDNSUpdateURL := fmt.Sprintf(UPDATE_DNS_ENDPOINT, zoneID, wwwID)
-			req, err := http.NewRequestWithContext(ctx, POST_METHOD_KEY, formattedDNSUpdateURL, bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequestWithContext(ctx, PATCH_METHOD_KEY, formattedDNSUpdateURL, bytes.NewBuffer(jsonBody))
 			if err != nil { // Errors related to creating request
 				log.Fatal("Error creating the request")
 				return false, err
@@ -259,6 +261,7 @@ func updateDNSRecord(client http.Client, ctx context.Context, zoneID string, api
 			json.Unmarshal([]byte(string(body)), &responseResult) // Parse the JSON
 			jsonResponseResult := responseResult["result"].(map[string]any)
 			if responseResult["success"].(bool) && jsonResponseResult["content"].(string) == publicIP {
+				log.Info("www domain updated")
 				resp.Body.Close()
 				return true, nil
 			}
