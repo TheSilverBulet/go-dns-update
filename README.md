@@ -38,6 +38,13 @@ Program help
   ./main -h
 ```
 
+Using this program with cron (Linux)
+  Install something like the following to your crontab
+
+```bash
+  */5 * * * * /path/to/binary -flag1=a -flag2=b
+```
+
 
 ## FAQ
 
