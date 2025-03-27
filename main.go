@@ -55,14 +55,14 @@ func main() {
 	// Get Zone ID
 	zoneID, err := GetZoneID(*cfClient, domainName)
 	if err != nil {
-		log.Fatal("Could not retrieve Zone ID")
+		log.Fatal(err.Error())
 		return
 	}
 
 	// Get current Public IP
 	publicIP, err := GetPublicIP()
 	if err != nil {
-		log.Fatal("Error obtaining Public IP Address")
+		log.Fatal(err.Error())
 		return
 	}
 
@@ -85,7 +85,7 @@ func main() {
 	}
 
 	// If the publicly obtained IP matches our current DNS A Record IP, all set
-	if publicIP == domainIP {
+	if publicIP == domainIP && !handleWWW {
 		// Straight up print this line to console so we can see that it is effectively doing something without increasing log granularity
 		fmt.Println(`DNS Record IP Address matches external IP address, nothing to do`)
 		return
@@ -94,7 +94,7 @@ func main() {
 	// Only ends up here in the event that the DNS Records needs to be updated
 	err = UpdateDNSRecord(*cfClient, domainName, zoneID, publicIP, domainID, wwwDomainID, handleWWW)
 	if err != nil {
-		log.Fatal("Failed to update DNS Records")
+		log.Fatal(err.Error())
 	}
 
 }
@@ -106,7 +106,7 @@ func GetZoneID(cfClient cloudflare.Client, domainName string) (string, error) {
 		Name: cloudflare.String(domainName),
 	})
 	if err != nil {
-		log.Fatal("Error retrieving zone data")
+		log.Fatal(err.Error())
 		return "", err
 	}
 	// Could be multiple Zones associated to this one token so make sure we are dealing with the one that matches our domain name
@@ -131,20 +131,20 @@ func GetPublicIP() (string, error) {
 	}
 	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PUB_IP_SERVICE_ENDPOINT, nil)
 	if err != nil {
-		log.Fatal("Error creating request")
+		log.Fatal(err.Error())
 		return "", err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal("Error firing request")
+		log.Fatal(err.Error())
 		return "", err
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
 	if err != nil {                    // Errors related to reading the response
-		log.Fatal("Error reading response body")
+		log.Fatal(err.Error())
 		return "", err
 	}
 
@@ -159,6 +159,7 @@ func GetDNSRecords(cfClient cloudflare.Client, domainName string, zoneID string,
 		ZoneID: cloudflare.String(zoneID),
 	})
 	if err != nil {
+		log.Fatal(err.Error())
 		return "", "", "", err
 	}
 	var domainID string
@@ -185,19 +186,19 @@ func UpdateDNSRecord(cfClient cloudflare.Client, domainName string, zoneID strin
 		Record: dns.ARecordParam{Content: cloudflare.String(publicIP)},
 	})
 	if err != nil {
-		log.Fatal("Error updating A Record")
+		log.Fatal(err.Error())
 		return err
 	}
 	if message.Content == publicIP {
 		log.Info(`Main domain A record updated successfully`)
 	}
 	if handleWWW {
-		wwwMessage, err := cfClient.DNS.Records.Edit(context.Background(), domainID, dns.RecordEditParams{
-			ZoneID: cloudflare.String(wwwDomainID),
+		wwwMessage, err := cfClient.DNS.Records.Edit(context.Background(), wwwDomainID, dns.RecordEditParams{
+			ZoneID: cloudflare.String(zoneID),
 			Record: dns.ARecordParam{Content: cloudflare.String(publicIP)},
 		})
 		if err != nil {
-			log.Fatal("Error updating www A Record")
+			log.Fatal(err.Error())
 			return err
 		}
 		if wwwMessage.Content == publicIP {
