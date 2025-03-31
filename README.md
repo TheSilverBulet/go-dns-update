@@ -38,7 +38,7 @@ Program help
   ./main -h
 ```
 
-Using this program with cron (Linux)  
+### Using this program with cron (Linux)  
 Install something like the following to your crontab
 
 ```bash
