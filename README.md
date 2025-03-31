@@ -38,7 +38,7 @@ Program help
   ./main -h
 ```
 
-### Using this program with cron (Linux)  
+## Using this program with cron (Linux)  
 Install something like the following to your crontab
 
 ```bash
@@ -51,7 +51,7 @@ This will run the program every 5 minutes
 
 #### Why?
 
-Wanted to challenge myself to build something useful in Go.
+I wanted to challenge myself to build something others and I could find useful in Go.
 
 #### Why not DDClient?
 
