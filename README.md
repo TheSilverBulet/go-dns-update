@@ -38,12 +38,21 @@ Program help
   ./main -h
 ```
 
+## Using this program with cron (Linux)
+
+Install something like the following to your crontab
+
+```bash
+  */5 * * * * /path/to/binary -flag1=a -flag2=b
+```
+This will run the program every 5 minutes
+
 
 ## FAQ
 
 #### Why?
 
-Wanted to challenge myself to build something useful in Go.
+I wanted to challenge myself to build something others and I could find useful in Go.
 
 #### Why not DDClient?
 

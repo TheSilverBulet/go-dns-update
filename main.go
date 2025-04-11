@@ -52,17 +52,38 @@ func main() {
 		option.WithRequestTimeout(5*time.Second),
 	)
 
-	// Get Zone ID
-	zoneID, err := GetZoneID(*cfClient, domainName)
-	if err != nil {
-		log.Fatal(err.Error())
-		return
-	}
+	//create channels for async calls to communicate via
+	zoneIDChan := make(chan string, 1)
+	publicIPChan := make(chan string, 1)
 
-	// Get current Public IP
-	publicIP, err := GetPublicIP()
-	if err != nil {
-		log.Fatal(err.Error())
+	// anonymous function for the goroutine for GetZoneID
+	go func() {
+		zoneID, err := GetZoneID(*cfClient, domainName)
+		if err != nil {
+			log.Fatal(err.Error())
+			zoneIDChan <- ""
+		}
+		zoneIDChan <- zoneID
+		// productResponsesCh "receives" productRes
+	}()
+
+	// anonymous function for the goroutine for GetPublicIP
+	go func() {
+		publicIP, err := GetPublicIP(PUB_IP_SERVICE_ENDPOINT)
+		if err != nil {
+			log.Fatal(err.Error())
+			publicIPChan <- ""
+		}
+		publicIPChan <- publicIP
+	}()
+
+	// we can send these as goroutines because they don't depend on each other
+	// get the values after they're sent
+	// if either is blank, something is wrong can't continue anyway
+	publicIP := <-publicIPChan
+	zoneID := <-zoneIDChan
+	if zoneID == "" || publicIP == "" {
+		log.Fatal("Could not retrieve initial values")
 		return
 	}
 
@@ -85,7 +106,7 @@ func main() {
 	}
 
 	// If the publicly obtained IP matches our current DNS A Record IP, all set
-	if publicIP == domainIP && !handleWWW {
+	if publicIP == domainIP {
 		// Straight up print this line to console so we can see that it is effectively doing something without increasing log granularity
 		fmt.Println(`DNS Record IP Address matches external IP address, nothing to do`)
 		return
@@ -120,32 +141,36 @@ func GetZoneID(cfClient cloudflare.Client, domainName string) (string, error) {
 }
 
 // Method to reach out to the ipify web service and get the value of the running machine's Public IP address
-func GetPublicIP() (string, error) {
+func GetPublicIP(PubIPServiceEndpoint string) (string, error) {
 	// Create a context which enables a 5s timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
-	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PUB_IP_SERVICE_ENDPOINT, nil)
+
+	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PubIPServiceEndpoint, nil)
 	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
+		return "", fmt.Errorf("request creation failed: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Add status code check
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("server returned status: %d", resp.StatusCode)
 	}
 
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
-	if err != nil {                    // Errors related to reading the response
-		log.Fatal(err.Error())
-		return "", err
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response failed: %w", err)
 	}
 
 	return string(body), nil
