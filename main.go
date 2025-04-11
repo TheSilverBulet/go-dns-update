@@ -69,7 +69,7 @@ func main() {
 
 	// anonymous function for the goroutine for GetPublicIP
 	go func() {
-		publicIP, err := GetPublicIP()
+		publicIP, err := GetPublicIP(PUB_IP_SERVICE_ENDPOINT)
 		if err != nil {
 			log.Fatal(err.Error())
 			publicIPChan <- ""
@@ -141,7 +141,7 @@ func GetZoneID(cfClient cloudflare.Client, domainName string) (string, error) {
 }
 
 // Method to reach out to the ipify web service and get the value of the running machine's Public IP address
-func GetPublicIP() (string, error) {
+func GetPublicIP(PubIPServiceEndpoint string) (string, error) {
 	// Create a context which enables a 5s timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -150,7 +150,7 @@ func GetPublicIP() (string, error) {
 			return http.ErrUseLastResponse
 		},
 	}
-	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PUB_IP_SERVICE_ENDPOINT, nil)
+	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PubIPServiceEndpoint, nil)
 	if err != nil {
 		log.Fatal(err.Error())
 		return "", err
