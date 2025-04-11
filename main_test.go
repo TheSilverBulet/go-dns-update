@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
-// Test SetLogLevel function
 func TestSetLogLevel(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -34,9 +35,7 @@ func TestSetLogLevel(t *testing.T) {
 	}
 }
 
-// Test GetPublicIP function
-func TestGetPublicIP(t *testing.T) {
-	// Create a test server to mock the IP service
+func TestGetPublicIP_Success(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("203.0.113.42"))
 	}))
@@ -51,9 +50,7 @@ func TestGetPublicIP(t *testing.T) {
 	}
 }
 
-// Test GetPublicIP with error
-func TestGetPublicIP_Error(t *testing.T) {
-	// Create a failing test server
+func TestGetPublicIP_ServerError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -61,33 +58,34 @@ func TestGetPublicIP_Error(t *testing.T) {
 
 	_, err := GetPublicIP(ts.URL)
 	if err == nil {
-		t.Error("Expected error but got none")
+		t.Fatal("Expected error but got none")
+	}
+	// Verify it's specifically a 500 error
+	if !strings.Contains(err.Error(), "server returned status: 500") {
+		t.Errorf("Expected server error, got: %v", err)
 	}
 }
 
-// Test GetPublicIP with timeout
 func TestGetPublicIP_Timeout(t *testing.T) {
-	// Create a test server that hangs to simulate timeout
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate long processing time
-		time.Sleep(2 * time.Second)
+		time.Sleep(6 * time.Second) // Longer than 5s timeout
 		w.Write([]byte("203.0.113.42"))
 	}))
 	defer ts.Close()
 
-	// Call with a very short timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	// Create a new request with the timeout context
-	client := &http.Client{}
-	req, err := http.NewRequestWithContext(ctx, "GET", ts.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = client.Do(req)
+	_, err := GetPublicIP(ts.URL)
 	if err == nil {
 		t.Error("Expected timeout error but got none")
+	}
+	// Check that it's specifically a timeout error
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Expected timeout error, got: %v", err)
+	}
+}
+
+func TestGetPublicIP_InvalidURL(t *testing.T) {
+	_, err := GetPublicIP("http://invalid.url")
+	if err == nil {
+		t.Error("Expected error for invalid URL but got none")
 	}
 }

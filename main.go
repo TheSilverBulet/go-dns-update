@@ -145,28 +145,32 @@ func GetPublicIP(PubIPServiceEndpoint string) (string, error) {
 	// Create a context which enables a 5s timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
+
 	req, err := http.NewRequestWithContext(ctx, GET_METHOD_KEY, PubIPServiceEndpoint, nil)
 	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
+		return "", fmt.Errorf("request creation failed: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Add status code check
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("server returned status: %d", resp.StatusCode)
 	}
 
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body) // Read resp.Body to body var
-	if err != nil {                    // Errors related to reading the response
-		log.Fatal(err.Error())
-		return "", err
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response failed: %w", err)
 	}
 
 	return string(body), nil
