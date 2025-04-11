@@ -52,17 +52,38 @@ func main() {
 		option.WithRequestTimeout(5*time.Second),
 	)
 
-	// Get Zone ID
-	zoneID, err := GetZoneID(*cfClient, domainName)
-	if err != nil {
-		log.Fatal(err.Error())
-		return
-	}
+	//create channels for async calls to communicate via
+	zoneIDChan := make(chan string, 1)
+	publicIPChan := make(chan string, 1)
 
-	// Get current Public IP
-	publicIP, err := GetPublicIP()
-	if err != nil {
-		log.Fatal(err.Error())
+	// anonymous function for the goroutine for GetZoneID
+	go func() {
+		zoneID, err := GetZoneID(*cfClient, domainName)
+		if err != nil {
+			log.Fatal(err.Error())
+			zoneIDChan <- ""
+		}
+		zoneIDChan <- zoneID
+		// productResponsesCh "receives" productRes
+	}()
+
+	// anonymous function for the goroutine for GetPublicIP
+	go func() {
+		publicIP, err := GetPublicIP()
+		if err != nil {
+			log.Fatal(err.Error())
+			publicIPChan <- ""
+		}
+		publicIPChan <- publicIP
+	}()
+
+	// we can send these as goroutines because they don't depend on each other
+	// get the values after they're sent
+	// if either is blank, something is wrong can't continue anyway
+	publicIP := <-publicIPChan
+	zoneID := <-zoneIDChan
+	if zoneID == "" || publicIP == "" {
+		log.Fatal("Could not retrieve initial values")
 		return
 	}
 
@@ -85,7 +106,7 @@ func main() {
 	}
 
 	// If the publicly obtained IP matches our current DNS A Record IP, all set
-	if publicIP == domainIP && !handleWWW {
+	if publicIP == domainIP {
 		// Straight up print this line to console so we can see that it is effectively doing something without increasing log granularity
 		fmt.Println(`DNS Record IP Address matches external IP address, nothing to do`)
 		return
